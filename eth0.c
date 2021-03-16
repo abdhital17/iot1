@@ -29,6 +29,7 @@
 #include "wait.h"
 #include "gpio.h"
 #include "spi0.h"
+#include <string.h>
 
 // Pins
 #define CS PORTA,3
@@ -534,6 +535,13 @@ uint16_t htons(uint16_t value)
 }
 #define ntohs htons
 
+uint32_t htonl(uint32_t value)
+{
+    return ((value & 0xFF000000) >> 24) + ((value & 0x00FF0000) >> 8)
+            + ((value & 0x0000FF00) << 8) + ((value & 0x000000FF) << 24);
+}
+#define htonl ntohl
+
 // Determines whether packet is IP datagram
 bool etherIsIp(etherHeader *ether)
 {
@@ -604,7 +612,7 @@ void etherSendPingResponse(etherHeader *ether)
     icmp_size = ntohs(ip->length) - ipHeaderLength;
     etherSumWords(icmp, icmp_size, &sum);
     icmp->check = getEtherChecksum(sum);
-    // send packet
+    // send packet=
     etherPutPacket(ether, sizeof(etherHeader) + ntohs(ip->length));
 }
 
@@ -643,19 +651,19 @@ bool etherIsArpResponse(etherHeader *ether)
 }
 
 
-void etherSendTCP(uint8_t *packet, socket S, uint16_t flags)
+void etherSendTCP(uint8_t *packet, socket *S, uint16_t flags)
 {
     etherHeader *ether = (etherHeader*) packet;
 
     uint8_t i = 0;
     for (i = 0; i < HW_ADD_LENGTH; i++)
     {
-        ether->sourceAddress[i] = S.sourceHw[i];
-        ether->destAddress[i] = S.destHw[i];
+        ether->sourceAddress[i] = S->sourceHw[i];
+        ether->destAddress[i] = S->destHw[i];
     }
 
-//    ether->sourceAddress = S.sourceHw;
-//    ether->destAddress = S.destHw;
+//    ether->sourceAddress = S->sourceHw;
+//    ether->destAddress = S->destHw;
 
     ether->frameType = htons(0x0800);
 
@@ -664,30 +672,68 @@ void etherSendTCP(uint8_t *packet, socket S, uint16_t flags)
     ip->protocol = 6;
     ip->ttl = 128;
     ip->typeOfService = 0;
+    ip->id = 12;
 
     for (i = 0; i < IP_ADD_LENGTH; i++)
     {
-        ip->sourceIp[i] = S.sourceIp[i];
-        ip->destIp[i] = S.destIP[i];
+        ip->sourceIp[i] = S->sourceIp[i];
+        ip->destIp[i] = S->destIP[i];
     }
 
+    //......
     ip->flagsAndOffset = 0;
     ip->headerChecksum = 0;
 
 
     tcpHeader *tcp = (tcpHeader*) ip->data;
-    tcp->sourcePort = htons(S.sourcePort);
-    tcp->destPort = htons(S.destPort);
-    tcp->sequenceNumber = 0;
-    tcp->acknowledgementNumber = htons(12345);
-    tcp->urgentPointer = htons(1234);
-    tcp->offsetFields = flags;
+    tcp->sourcePort = htons(S->sourcePort);
+    tcp->destPort = htons(S->destPort);
+    tcp->sequenceNumber = htonl(368);
+    tcp->acknowledgementNumber =htonl(0);
+    tcp->urgentPointer = 0;
+    //tcp->offsetFields = htons(flags);
     tcp->checksum = 0;
-    tcp->windowSize = htons(1000);
+    tcp->windowSize = htons(5000);
 
-    ip->length = sizeof(ipHeader) + sizeof(tcpHeader);
+//.........
+    uint16_t ipHeaderLength;
+    ipHeaderLength = sizeof(ipHeader) + sizeof(tcpHeader);// + strlen(tcp->data);
+    ip->length = htons(ipHeaderLength);
+    etherCalcIpChecksum(ip);
 
+
+
+    uint16_t tcpHeaderLength = ipHeaderLength - (ip->revSize & 0xF)*4 - sizeof(tcp->data);
+    //tcpHeaderLength = (tcpHeaderLength / 4) << 12;
+    tcp->offsetFields = htons(((tcpHeaderLength / 4) << 12) + flags);
+
+    // 32-bit sum over pseudo-header
+    uint32_t sum = 0;
+    pseudo *p;
+
+    for (i = 0; i < IP_ADD_LENGTH; i++)
+    {
+        p->src[i] = ip->sourceIp[i];
+        p->dest[i] = ip->destIp[i];
+    }
+    p->zero = 0;
+    p->length = tcpHeaderLength;
+    p->protocol = ip->protocol;
+
+    etherSumWords(p, sizeof(pseudo), &sum);
+
+
+    etherSumWords(tcp, tcpHeaderLength, &sum);
+    etherSumWords(tcp->data, 0 , &sum);
+    //sum -= 1384;
+    tcp->checksum = getEtherChecksum(sum);
+
+
+    uint8_t kljafdsj = sizeof(etherHeader) + sizeof(ipHeader) + sizeof(tcpHeader);
     etherPutPacket(ether, sizeof(etherHeader) + sizeof(ipHeader) + sizeof(tcpHeader));
+
+
+
 }
 
 // Sends an ARP response given the request data

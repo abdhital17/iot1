@@ -126,6 +126,15 @@ typedef struct _tcpHeader // 20 or more bytes
   uint8_t  data[0];
 } tcpHeader;
 
+typedef struct _tcp_pseudo_struct
+{
+    uint8_t src[4];
+    uint8_t dest[4];
+    uint8_t zero;
+    uint8_t protocol;
+    uint16_t length;
+}pseudo;
+
 typedef struct _socket
 {
     uint8_t sourceIp[4];
@@ -178,7 +187,7 @@ uint8_t* etherGetUdpData(etherHeader *ether);
 void etherSendUdpResponse(etherHeader *ether, uint8_t* udpData, uint8_t udpSize);
 
 
-void etherSendTCP(uint8_t *packet, socket S, uint16_t flags);
+void etherSendTCP(uint8_t *packet, socket *S, uint16_t flags);
 
 
 void etherEnableDhcpMode();
@@ -196,5 +205,8 @@ void etherGetMacAddress(uint8_t mac[6]);
 
 uint16_t htons(uint16_t value);
 #define ntohs htons
+
+uint32_t htonl(uint32_t value);
+#define ntohl htonl
 
 #endif

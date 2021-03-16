@@ -17,6 +17,7 @@ eth0.obj: ../tm4c123gh6pm.h
 eth0.obj: ../wait.h
 eth0.obj: ../gpio.h
 eth0.obj: ../spi0.h
+eth0.obj: C:/ti/ccs1011/ccs/tools/compiler/ti-cgt-arm_20.2.1.LTS/include/string.h
 
 ../eth0.c: 
 C:/Users/Abhishek/workspace_v10/iot1/eth0.h: 
@@ -35,3 +36,4 @@ C:/ti/ccs1011/ccs/tools/compiler/ti-cgt-arm_20.2.1.LTS/include/stdbool.h:
 ../wait.h: 
 ../gpio.h: 
 ../spi0.h: 
+C:/ti/ccs1011/ccs/tools/compiler/ti-cgt-arm_20.2.1.LTS/include/string.h: 

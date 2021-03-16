@@ -402,7 +402,7 @@ int main(void)
             }
 
             //Handle ARP response
-            else if (etherIsArpResponse(data))
+            if (etherIsArpResponse(data))
             {
                 putsUart0("getting ARP response\n\r");
                 //mqtt_addr
@@ -421,7 +421,7 @@ int main(void)
                 putsUart0(text);
 
                 socket soc;
-                uint8_t packet;
+                uint8_t packet[MAX_PACKET_SIZE];
 
                 uint8_t macAddr[6];
                 etherGetMacAddress(macAddr);
@@ -445,7 +445,7 @@ int main(void)
                 soc.destPort = 1883;
                 soc.sourcePort = 12343;
 
-                etherSendTCP(&packet, soc, 2);    //flag = 2 for SYN
+                etherSendTCP(packet, &soc, 2);    //flag = 2 for SYN
 
             }
 
