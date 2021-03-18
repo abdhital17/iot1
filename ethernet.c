@@ -142,9 +142,9 @@ void displayConnectionInfo()
     }
     putcUart0('\n');
     if (etherIsLinkUp())
-        putsUart0("Link is up\n");
+        putsUart0("Link is up\n\r");
     else
-        putsUart0("Link is down\n");
+        putsUart0("Link is down\n\r");
 }
 
 
@@ -469,6 +469,21 @@ int main(void)
                         if (strcmp((char*)udpData, "off") == 0)
                             setPinValue(GREEN_LED, 0);
                         etherSendUdpResponse(data, (uint8_t*)"Received", 9);
+                    }
+
+                    //process TCP datagram
+                    if(etherIsTcpResponse(data))
+                    {
+                        etherHeader* ether = data;
+                        ipHeader *ip = (ipHeader*)ether->data;
+                        uint8_t ipHeaderLength = (ip->revSize & 0xF) * 4;
+                        tcpHeader *tcp = (tcpHeader*)((uint8_t*)ip + ipHeaderLength);
+                        uint8_t flag = (ntohs(tcp->offsetFields) & 0xFF);
+
+                        char text[50];
+                        sprintf(text, "flag: 0x%x \n\r", flag);
+                        putsUart0(text);
+
                     }
                 }
             }

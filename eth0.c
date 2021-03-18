@@ -573,6 +573,52 @@ bool etherIsIpUnicast(etherHeader *ether)
     return ok;
 }
 
+
+//returns the flag field of TCP
+//Must be a TCP packet
+
+//uint8_t getTCPFlag(etherHeader *ether)
+//{
+//    ipHeader *ip = (ipHeader*)ether->data;
+//    uint8_t ipHeaderLength = (ip->revSize & 0xF) * 4;
+//    tcpHeader *tcp = (tcpHeader*)((uint8_t*)ip + ipHeaderLength);
+//    return (ntohs(tcp->offsetFields) & 0xFF);
+//}
+//Determines whether packet is TCP response
+//Must be an IP Packet
+
+bool etherIsTcpResponse(etherHeader *ether)
+{
+    ipHeader *ip = (ipHeader*)ether->data;
+    uint8_t ipHeaderLength = (ip->revSize & 0xF) * 4;
+    tcpHeader *tcp = (tcpHeader*)((uint8_t*)ip + ipHeaderLength);
+    bool ok;
+    uint16_t tmp16;
+    uint32_t sum = 0;
+    ok = (ip->protocol == 0x6);
+    uint16_t tcpHeaderLength = ntohs(ip->length) - ipHeaderLength;
+    if (ok)
+    {
+        uint8_t pseudo_buffer [sizeof(pseudo)];
+        pseudo *p = (pseudo*) pseudo_buffer;
+        uint8_t i = 0;
+        for (i = 0; i < IP_ADD_LENGTH; i++)
+        {
+            p->src[i] = ip->sourceIp[i];
+            p->dest[i] = ip->destIp[i];
+        }
+        p->zero = 0;
+        p->length = htons(tcpHeaderLength);
+        p->protocol = ip->protocol;
+
+        etherSumWords(p, sizeof(pseudo), &sum);
+
+        etherSumWords(tcp, tcpHeaderLength, &sum);
+        ok = (getEtherChecksum(sum) == 0);
+    }
+    return ok;
+}
+
 // Determines whether packet is ping request
 // Must be an IP packet
 bool etherIsPingRequest(etherHeader *ether)
@@ -688,12 +734,12 @@ void etherSendTCP(uint8_t *packet, socket *S, uint16_t flags)
     tcpHeader *tcp = (tcpHeader*) ip->data;
     tcp->sourcePort = htons(S->sourcePort);
     tcp->destPort = htons(S->destPort);
-    tcp->sequenceNumber = htonl(368);
+    tcp->sequenceNumber = htonl(1);
     tcp->acknowledgementNumber =htonl(0);
     tcp->urgentPointer = 0;
     //tcp->offsetFields = htons(flags);
     tcp->checksum = 0;
-    tcp->windowSize = htons(5000);
+    tcp->windowSize = htons(5001);
 
 //.........
     uint16_t ipHeaderLength;
@@ -717,19 +763,22 @@ void etherSendTCP(uint8_t *packet, socket *S, uint16_t flags)
         p->dest[i] = ip->destIp[i];
     }
     p->zero = 0;
-    p->length = tcpHeaderLength;
+    p->length = htons(tcpHeaderLength);
     p->protocol = ip->protocol;
 
     etherSumWords(p, sizeof(pseudo), &sum);
 
 
     etherSumWords(tcp, tcpHeaderLength, &sum);
-    etherSumWords(tcp->data, 0 , &sum);
-    //sum -= 1384;
+    //etherSumWords(tcp->data, 0 , &sum);
+ //sum -= 1384;
+
     tcp->checksum = getEtherChecksum(sum);
 
+    //tcp->checksum = 0xa1dd;
 
-    uint8_t kljafdsj = sizeof(etherHeader) + sizeof(ipHeader) + sizeof(tcpHeader);
+
+    //uint8_t kljafdsj = sizeof(etherHeader) + sizeof(ipHeader) + sizeof(tcpHeader);
     etherPutPacket(ether, sizeof(etherHeader) + sizeof(ipHeader) + sizeof(tcpHeader));
 
 

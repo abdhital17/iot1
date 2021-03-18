@@ -188,6 +188,8 @@ void etherSendUdpResponse(etherHeader *ether, uint8_t* udpData, uint8_t udpSize)
 
 
 void etherSendTCP(uint8_t *packet, socket *S, uint16_t flags);
+bool etherIsTcpResponse(etherHeader *ether);
+
 
 
 void etherEnableDhcpMode();
