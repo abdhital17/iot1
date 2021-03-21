@@ -63,6 +63,7 @@
 #include "wait.h"
 #include "eth0.h"
 #include "tm4c123gh6pm.h"
+#include "mqtt.h"
 
 // Pins
 #define RED_LED PORTF,1
@@ -70,6 +71,10 @@
 #define GREEN_LED PORTF,3
 #define PUSH_BUTTON PORTF,4
 
+
+uint32_t sNum = 20;
+uint32_t aNum = 0;
+bool check = false;
 //-----------------------------------------------------------------------------
 // Subroutines                
 //-----------------------------------------------------------------------------
@@ -445,7 +450,7 @@ int main(void)
                 soc.destPort = 1883;
                 soc.sourcePort = 12343;
 
-                etherSendTCP(packet, &soc, 2);    //flag = 2 for SYN
+                etherSendTCP(packet, &soc, 0x2, aNum, sNum, 0);    //flag = 2 for SYN
 
             }
 
@@ -480,9 +485,46 @@ int main(void)
                         tcpHeader *tcp = (tcpHeader*)((uint8_t*)ip + ipHeaderLength);
                         uint8_t flag = (ntohs(tcp->offsetFields) & 0xFF);
 
+                        sNum += 1;
+                        uint32_t ackNum = ntohl(tcp->sequenceNumber) + 1;
+                        uint8_t packet[MAX_PACKET_SIZE];
+
                         char text[50];
                         sprintf(text, "flag: 0x%x \n\r", flag);
                         putsUart0(text);
+
+                        socket soc;
+                        uint8_t macAddr[6];
+                        etherGetMacAddress(macAddr);
+                        uint8_t ipAddr[4];
+                        etherGetIpAddress(ipAddr);
+
+                        uint8_t i = 0;
+                        for (i = 0; i < 6; i++)
+                        {
+                            soc.sourceHw[i] = macAddr[i] ;
+                            soc.destHw[i] = mqtt_addr[i];
+                        }
+
+
+                        for (i = 0; i < 4; i++)
+                        {
+                            soc.sourceIp[i] = ipAddr[i];
+                            soc.destIP[i] = mqtt_ip[i];
+                        }
+
+                        soc.destPort = 1883;
+                        soc.sourcePort = 12343;
+
+
+                        etherSendTCP(ether, &soc, 0x10, aNum, sNum, 0);    //flag = 2 for SYN
+
+                        getMQTTPacket(tcp->data, 1, 0);
+                        uint16_t tcpPayloadSize = getConnectPacket(tcp->data, 0x04, 0, 10, "abhi", 4);
+                        etherSendTCP(ether, &soc, 0x10 | 0x8, aNum, sNum, tcpPayloadSize);    //flag = 2 for SYN
+
+                        setPinValue(BLUE_LED, 1);
+
 
                     }
                 }

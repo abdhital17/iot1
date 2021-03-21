@@ -123,6 +123,7 @@ typedef struct _tcpHeader // 20 or more bytes
   uint16_t windowSize;
   uint16_t checksum;
   uint16_t urgentPointer;
+  uint8_t  options[4];
   uint8_t  data[0];
 } tcpHeader;
 
@@ -187,7 +188,7 @@ uint8_t* etherGetUdpData(etherHeader *ether);
 void etherSendUdpResponse(etherHeader *ether, uint8_t* udpData, uint8_t udpSize);
 
 
-void etherSendTCP(uint8_t *packet, socket *S, uint16_t flags);
+void etherSendTCP(uint8_t *packet, socket *S, uint16_t flags, uint32_t ackNum, uint32_t seqNum, uint16_t payloadSize);
 bool etherIsTcpResponse(etherHeader *ether);
 
 

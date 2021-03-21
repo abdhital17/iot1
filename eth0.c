@@ -593,10 +593,10 @@ bool etherIsTcpResponse(etherHeader *ether)
     uint8_t ipHeaderLength = (ip->revSize & 0xF) * 4;
     tcpHeader *tcp = (tcpHeader*)((uint8_t*)ip + ipHeaderLength);
     bool ok;
-    uint16_t tmp16;
+//    uint16_t tmp16;
     uint32_t sum = 0;
     ok = (ip->protocol == 0x6);
-    uint16_t tcpHeaderLength = ntohs(ip->length) - ipHeaderLength;
+    uint16_t tcpPacketLength = ntohs(ip->length) - ipHeaderLength;
     if (ok)
     {
         uint8_t pseudo_buffer [sizeof(pseudo)];
@@ -608,12 +608,12 @@ bool etherIsTcpResponse(etherHeader *ether)
             p->dest[i] = ip->destIp[i];
         }
         p->zero = 0;
-        p->length = htons(tcpHeaderLength);
+        p->length = htons(tcpPacketLength);
         p->protocol = ip->protocol;
 
         etherSumWords(p, sizeof(pseudo), &sum);
 
-        etherSumWords(tcp, tcpHeaderLength, &sum);
+        etherSumWords(tcp, tcpPacketLength, &sum);
         ok = (getEtherChecksum(sum) == 0);
     }
     return ok;
@@ -697,7 +697,7 @@ bool etherIsArpResponse(etherHeader *ether)
 }
 
 
-void etherSendTCP(uint8_t *packet, socket *S, uint16_t flags)
+void etherSendTCP(uint8_t *packet, socket *S, uint16_t flags, uint32_t ackNum, uint32_t seqNum, uint16_t payloadSize)
 {
     etherHeader *ether = (etherHeader*) packet;
 
@@ -734,28 +734,38 @@ void etherSendTCP(uint8_t *packet, socket *S, uint16_t flags)
     tcpHeader *tcp = (tcpHeader*) ip->data;
     tcp->sourcePort = htons(S->sourcePort);
     tcp->destPort = htons(S->destPort);
-    tcp->sequenceNumber = htonl(1);
-    tcp->acknowledgementNumber =htonl(0);
+    tcp->sequenceNumber = htonl(seqNum);
+    tcp->acknowledgementNumber =htonl(ackNum);
     tcp->urgentPointer = 0;
     //tcp->offsetFields = htons(flags);
     tcp->checksum = 0;
-    tcp->windowSize = htons(5001);
+    tcp->windowSize = htons(1460);
+
+    tcp->options[0] = 0x02;     //kind = 2 for MSS
+    tcp->options[1] = 0x04;     //size of Options field
+    //MSS Value = 1460 for 1460bytes of max. TCP payload, 1460 = 0x05B4
+    tcp->options[2] = 0x05;
+    tcp->options[3] = 0xB4;
+
 
 //.........
     uint16_t ipHeaderLength;
-    ipHeaderLength = sizeof(ipHeader) + sizeof(tcpHeader);// + strlen(tcp->data);
+    ipHeaderLength = sizeof(ipHeader) + sizeof(tcpHeader) + payloadSize;// + strlen(tcp->data);
     ip->length = htons(ipHeaderLength);
     etherCalcIpChecksum(ip);
 
 
 
-    uint16_t tcpHeaderLength = ipHeaderLength - (ip->revSize & 0xF)*4 - sizeof(tcp->data);
+    uint16_t tcpHeaderLength = ipHeaderLength - (ip->revSize & 0xF)*4 - payloadSize;
     //tcpHeaderLength = (tcpHeaderLength / 4) << 12;
     tcp->offsetFields = htons(((tcpHeaderLength / 4) << 12) + flags);
 
     // 32-bit sum over pseudo-header
     uint32_t sum = 0;
-    pseudo *p;
+
+    uint8_t pseudo_buffer [sizeof(pseudo)];
+    pseudo *p = (pseudo*) pseudo_buffer;
+
 
     for (i = 0; i < IP_ADD_LENGTH; i++)
     {
@@ -763,23 +773,24 @@ void etherSendTCP(uint8_t *packet, socket *S, uint16_t flags)
         p->dest[i] = ip->destIp[i];
     }
     p->zero = 0;
-    p->length = htons(tcpHeaderLength);
+    p->length = htons(tcpHeaderLength + payloadSize);
     p->protocol = ip->protocol;
 
     etherSumWords(p, sizeof(pseudo), &sum);
 
 
-    etherSumWords(tcp, tcpHeaderLength, &sum);
+    etherSumWords(tcp, tcpHeaderLength + payloadSize, &sum);
     //etherSumWords(tcp->data, 0 , &sum);
- //sum -= 1384;
+   //sum -= 1384;
 
     tcp->checksum = getEtherChecksum(sum);
+
 
     //tcp->checksum = 0xa1dd;
 
 
     //uint8_t kljafdsj = sizeof(etherHeader) + sizeof(ipHeader) + sizeof(tcpHeader);
-    etherPutPacket(ether, sizeof(etherHeader) + sizeof(ipHeader) + sizeof(tcpHeader));
+    etherPutPacket(ether, sizeof(etherHeader) + sizeof(ipHeader) + sizeof(tcpHeader) + payloadSize);
 
 
 

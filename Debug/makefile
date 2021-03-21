@@ -14,6 +14,7 @@ ORDERED_OBJS += \
 "./eth0.obj" \
 "./ethernet.obj" \
 "./gpio.obj" \
+"./mqqt.obj" \
 "./spi0.obj" \
 "./tm4c123gh6pm_startup_ccs.obj" \
 "./uart0.obj" \
@@ -161,8 +162,8 @@ iot1.hex: $(EXE_OUTPUTS)
 # Other Targets
 clean:
 	-$(RM) $(BIN_OUTPUTS__QUOTED)$(EXE_OUTPUTS__QUOTED)
-	-$(RM) "clock.obj" "eth0.obj" "ethernet.obj" "gpio.obj" "spi0.obj" "tm4c123gh6pm_startup_ccs.obj" "uart0.obj" "wait.obj" 
-	-$(RM) "clock.d" "eth0.d" "ethernet.d" "gpio.d" "spi0.d" "tm4c123gh6pm_startup_ccs.d" "uart0.d" "wait.d" 
+	-$(RM) "clock.obj" "eth0.obj" "ethernet.obj" "gpio.obj" "mqqt.obj" "spi0.obj" "tm4c123gh6pm_startup_ccs.obj" "uart0.obj" "wait.obj" 
+	-$(RM) "clock.d" "eth0.d" "ethernet.d" "gpio.d" "mqqt.d" "spi0.d" "tm4c123gh6pm_startup_ccs.d" "uart0.d" "wait.d" 
 	-@echo 'Finished clean'
 	-@echo ' '
 

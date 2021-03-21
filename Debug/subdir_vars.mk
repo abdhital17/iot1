@@ -13,6 +13,7 @@ C_SRCS += \
 ../eth0.c \
 ../ethernet.c \
 ../gpio.c \
+../mqqt.c \
 ../spi0.c \
 ../tm4c123gh6pm_startup_ccs.c \
 ../uart0.c \
@@ -23,6 +24,7 @@ C_DEPS += \
 ./eth0.d \
 ./ethernet.d \
 ./gpio.d \
+./mqqt.d \
 ./spi0.d \
 ./tm4c123gh6pm_startup_ccs.d \
 ./uart0.d \
@@ -33,6 +35,7 @@ OBJS += \
 ./eth0.obj \
 ./ethernet.obj \
 ./gpio.obj \
+./mqqt.obj \
 ./spi0.obj \
 ./tm4c123gh6pm_startup_ccs.obj \
 ./uart0.obj \
@@ -43,6 +46,7 @@ OBJS__QUOTED += \
 "eth0.obj" \
 "ethernet.obj" \
 "gpio.obj" \
+"mqqt.obj" \
 "spi0.obj" \
 "tm4c123gh6pm_startup_ccs.obj" \
 "uart0.obj" \
@@ -53,6 +57,7 @@ C_DEPS__QUOTED += \
 "eth0.d" \
 "ethernet.d" \
 "gpio.d" \
+"mqqt.d" \
 "spi0.d" \
 "tm4c123gh6pm_startup_ccs.d" \
 "uart0.d" \
@@ -63,6 +68,7 @@ C_SRCS__QUOTED += \
 "../eth0.c" \
 "../ethernet.c" \
 "../gpio.c" \
+"../mqqt.c" \
 "../spi0.c" \
 "../tm4c123gh6pm_startup_ccs.c" \
 "../uart0.c" \

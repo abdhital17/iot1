@@ -1,0 +1,35 @@
+# FIXED
+
+mqqt.obj: ../mqqt.c
+mqqt.obj: ../mqtt.h
+mqqt.obj: C:/ti/ccs1011/ccs/tools/compiler/ti-cgt-arm_20.2.1.LTS/include/stdint.h
+mqqt.obj: C:/ti/ccs1011/ccs/tools/compiler/ti-cgt-arm_20.2.1.LTS/include/_ti_config.h
+mqqt.obj: C:/ti/ccs1011/ccs/tools/compiler/ti-cgt-arm_20.2.1.LTS/include/linkage.h
+mqqt.obj: C:/ti/ccs1011/ccs/tools/compiler/ti-cgt-arm_20.2.1.LTS/include/_stdint40.h
+mqqt.obj: C:/ti/ccs1011/ccs/tools/compiler/ti-cgt-arm_20.2.1.LTS/include/sys/stdint.h
+mqqt.obj: C:/ti/ccs1011/ccs/tools/compiler/ti-cgt-arm_20.2.1.LTS/include/sys/cdefs.h
+mqqt.obj: C:/ti/ccs1011/ccs/tools/compiler/ti-cgt-arm_20.2.1.LTS/include/sys/_types.h
+mqqt.obj: C:/ti/ccs1011/ccs/tools/compiler/ti-cgt-arm_20.2.1.LTS/include/machine/_types.h
+mqqt.obj: C:/ti/ccs1011/ccs/tools/compiler/ti-cgt-arm_20.2.1.LTS/include/machine/_stdint.h
+mqqt.obj: C:/ti/ccs1011/ccs/tools/compiler/ti-cgt-arm_20.2.1.LTS/include/sys/_stdint.h
+mqqt.obj: C:/ti/ccs1011/ccs/tools/compiler/ti-cgt-arm_20.2.1.LTS/include/stdbool.h
+mqqt.obj: C:/ti/ccs1011/ccs/tools/compiler/ti-cgt-arm_20.2.1.LTS/include/string.h
+mqqt.obj: ../uart0.h
+mqqt.obj: ../eth0.h
+
+../mqqt.c: 
+../mqtt.h: 
+C:/ti/ccs1011/ccs/tools/compiler/ti-cgt-arm_20.2.1.LTS/include/stdint.h: 
+C:/ti/ccs1011/ccs/tools/compiler/ti-cgt-arm_20.2.1.LTS/include/_ti_config.h: 
+C:/ti/ccs1011/ccs/tools/compiler/ti-cgt-arm_20.2.1.LTS/include/linkage.h: 
+C:/ti/ccs1011/ccs/tools/compiler/ti-cgt-arm_20.2.1.LTS/include/_stdint40.h: 
+C:/ti/ccs1011/ccs/tools/compiler/ti-cgt-arm_20.2.1.LTS/include/sys/stdint.h: 
+C:/ti/ccs1011/ccs/tools/compiler/ti-cgt-arm_20.2.1.LTS/include/sys/cdefs.h: 
+C:/ti/ccs1011/ccs/tools/compiler/ti-cgt-arm_20.2.1.LTS/include/sys/_types.h: 
+C:/ti/ccs1011/ccs/tools/compiler/ti-cgt-arm_20.2.1.LTS/include/machine/_types.h: 
+C:/ti/ccs1011/ccs/tools/compiler/ti-cgt-arm_20.2.1.LTS/include/machine/_stdint.h: 
+C:/ti/ccs1011/ccs/tools/compiler/ti-cgt-arm_20.2.1.LTS/include/sys/_stdint.h: 
+C:/ti/ccs1011/ccs/tools/compiler/ti-cgt-arm_20.2.1.LTS/include/stdbool.h: 
+C:/ti/ccs1011/ccs/tools/compiler/ti-cgt-arm_20.2.1.LTS/include/string.h: 
+../uart0.h: 
+../eth0.h: 
