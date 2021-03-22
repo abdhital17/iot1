@@ -72,7 +72,19 @@
 #define PUSH_BUTTON PORTF,4
 
 
-uint32_t sNum = 20;
+//Packet Types MQTT
+#define CONNECT 1
+#define CONNACK 2
+#define PUBLISH 3
+#define PUBACK  4
+#define SUBSCRIBE 8
+#define SUBACK    9
+#define UNSUBSCRIBE 10
+#define UNSUBACK    11
+#define DISCONNECT 14
+
+
+uint32_t sNum = 0;
 uint32_t aNum = 0;
 bool check = false;
 //-----------------------------------------------------------------------------
@@ -450,7 +462,8 @@ int main(void)
                 soc.destPort = 1883;
                 soc.sourcePort = 12343;
 
-                etherSendTCP(packet, &soc, 0x2, aNum, sNum, 0);    //flag = 2 for SYN
+                check = false;
+                etherSendTCP(packet, &soc, 0x2, aNum, sNum, 4);    //flag = 2 for SYN
 
             }
 
@@ -479,14 +492,15 @@ int main(void)
                     //process TCP datagram
                     if(etherIsTcpResponse(data))
                     {
-                        etherHeader* ether = data;
+
+                         etherHeader* ether = data;
                         ipHeader *ip = (ipHeader*)ether->data;
                         uint8_t ipHeaderLength = (ip->revSize & 0xF) * 4;
                         tcpHeader *tcp = (tcpHeader*)((uint8_t*)ip + ipHeaderLength);
                         uint8_t flag = (ntohs(tcp->offsetFields) & 0xFF);
 
                         sNum += 1;
-                        uint32_t ackNum = ntohl(tcp->sequenceNumber) + 1;
+                        aNum = ntohl(tcp->sequenceNumber) + 1;
                         uint8_t packet[MAX_PACKET_SIZE];
 
                         char text[50];
@@ -516,14 +530,48 @@ int main(void)
                         soc.destPort = 1883;
                         soc.sourcePort = 12343;
 
+//                        aNum = 1;
 
-                        etherSendTCP(ether, &soc, 0x10, aNum, sNum, 0);    //flag = 2 for SYN
+                        if ((ntohs(tcp->offsetFields) & 0xFF) == 0x012)
+                        {
 
-                        getMQTTPacket(tcp->data, 1, 0);
-                        uint16_t tcpPayloadSize = getConnectPacket(tcp->data, 0x04, 0, 10, "abhi", 4);
-                        etherSendTCP(ether, &soc, 0x10 | 0x8, aNum, sNum, tcpPayloadSize);    //flag = 2 for SYN
+                            //send ACK for [SYN,ACK]
+                            etherSendTCP(ether, &soc, 0x10, aNum, sNum, 0);    //flag = 0x10 for ACK
 
-                        setPinValue(BLUE_LED, 1);
+                            //create and send a MQTT CONNECT packet
+                            getMQTTPacket(tcp->data, CONNECT, 0);
+                            uint16_t tcpPayloadSize = getConnectPacket(tcp->data, 0x04, 0, 100, "abhi", 4);
+                            etherSendTCP((uint8_t*)ether, &soc, (0x10) | 0x8, aNum, sNum, tcpPayloadSize);
+                            aNum += 4;
+                            sNum += tcpPayloadSize;
+
+
+                            //after receiving connack
+                            etherSendTCP(ether, &soc, 0x10, aNum, sNum, 0);    //flag = 0x10 for ACK
+                            getMQTTPacket(tcp->data, PUBLISH, 2);
+                            tcpPayloadSize = getPublishPacket(tcp->data, "test_name", "1234abcd6789");
+                            etherSendTCP((uint8_t*)ether, &soc, 0x18, aNum, sNum, tcpPayloadSize);
+
+
+                            getMQTTPacket(tcp->data, SUBSCRIBE, 0);
+                            tcpPayloadSize = getSubscribePacket(tcp->data, 456, "topicName");
+
+
+                            etherSendTCP((uint8_t*)ether, &soc, 0x18, aNum, sNum, tcpPayloadSize);
+                        }
+
+//                        else if (((ntohs(tcp->offsetFields) & 0xFF) == 0x011 || ntohs(tcp->offsetFields) & 0xFF == 0x014))
+//                        {
+//                            aNum = ntohl(tcp->sequenceNumber);
+//                            sNum = ntohl(tcp->acknowledgementNumber);
+//
+//                            putsUart0("Disconnecting.....\n\r");
+//                            etherSendTCP(ether, &soc, 0x10, aNum, sNum, 0);
+//                        }
+
+//                        setPinValue(BLUE_LED, 1);
+                        //check = true;
+
 
 
                     }

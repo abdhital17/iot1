@@ -10,13 +10,16 @@
 
 
 //MQTT Control Header Flags
-#define CONNECT     1
-#define CONNACK     2
-#define PUBLISH     3
-#define PUBACK      4
-#define SUBSCRIBE   8
+//Packet Types MQTT
+#define CONNECT 1
+#define CONNACK 2
+#define PUBLISH 3
+#define PUBACK  4
+#define SUBSCRIBE 8
+#define SUBACK    9
 #define UNSUBSCRIBE 10
-#define DISCONNECT  14
+#define UNSUBACK    11
+#define DISCONNECT 14
 
 
 //MQTT Packet
@@ -33,7 +36,6 @@ typedef struct MQTT_Packet
   uint8_t remLength[4];
   uint8_t data[0];
 } mqttPack;
-
 
 
 typedef struct _connectHeader
@@ -55,7 +57,9 @@ typedef struct _connackHeader
 void getutf8Encoding(char* outputStr, char* inputStr, uint16_t strlen);
 void getMQTTPacket(uint8_t* tcpData, uint8_t type, uint8_t flags);
 uint16_t getConnectPacket(uint8_t* tcpData, uint8_t protocolLevel, uint8_t connectFlags, uint16_t keepalive, char* clientID, uint16_t clientIDLength);
-bool isMQTTconnack(uint8_t* packet);
+uint16_t getPublishPacket(uint8_t* tcpData, char* topic_name, char* data);
+uint16_t getSubscribePacket(uint8_t* tcpData, uint16_t packetId, char* topic_name);
+bool isMQTTconnack(uint8_t* tcpData);
 uint32_t getRemLength(uint32_t input, uint8_t* fieldCount);
 
 

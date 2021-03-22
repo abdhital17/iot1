@@ -741,11 +741,7 @@ void etherSendTCP(uint8_t *packet, socket *S, uint16_t flags, uint32_t ackNum, u
     tcp->checksum = 0;
     tcp->windowSize = htons(1460);
 
-    tcp->options[0] = 0x02;     //kind = 2 for MSS
-    tcp->options[1] = 0x04;     //size of Options field
-    //MSS Value = 1460 for 1460bytes of max. TCP payload, 1460 = 0x05B4
-    tcp->options[2] = 0x05;
-    tcp->options[3] = 0xB4;
+
 
 
 //.........
@@ -757,6 +753,15 @@ void etherSendTCP(uint8_t *packet, socket *S, uint16_t flags, uint32_t ackNum, u
 
 
     uint16_t tcpHeaderLength = ipHeaderLength - (ip->revSize & 0xF)*4 - payloadSize;
+    if (flags & 0x2)        //if SYN flag is being sent, fill the options field.
+    {
+        *(tcp->data) = 0x02;     //kind = 2 for MSS
+        *(tcp->data + 1) = 0x04;     //size of Options field
+        //MSS Value = 1460 for 1460bytes of max. TCP payload, 1460 = 0x05B4
+        *(tcp->data + 2) = 0x05;
+        *(tcp->data + 3) = 0xB4;
+         tcpHeaderLength = ipHeaderLength - (ip->revSize & 0xF)*4;
+    }
     //tcpHeaderLength = (tcpHeaderLength / 4) << 12;
     tcp->offsetFields = htons(((tcpHeaderLength / 4) << 12) + flags);
 
@@ -773,13 +778,19 @@ void etherSendTCP(uint8_t *packet, socket *S, uint16_t flags, uint32_t ackNum, u
         p->dest[i] = ip->destIp[i];
     }
     p->zero = 0;
-    p->length = htons(tcpHeaderLength + payloadSize);
+    if(flags & 0x2)
+        p->length = htons(tcpHeaderLength);
+    else
+        p->length = htons(tcpHeaderLength + payloadSize);
     p->protocol = ip->protocol;
 
     etherSumWords(p, sizeof(pseudo), &sum);
 
-
+if(flags & 0x2)
+    etherSumWords(tcp, tcpHeaderLength, &sum);
+else
     etherSumWords(tcp, tcpHeaderLength + payloadSize, &sum);
+
     //etherSumWords(tcp->data, 0 , &sum);
    //sum -= 1384;
 

@@ -123,7 +123,6 @@ typedef struct _tcpHeader // 20 or more bytes
   uint16_t windowSize;
   uint16_t checksum;
   uint16_t urgentPointer;
-  uint8_t  options[4];
   uint8_t  data[0];
 } tcpHeader;
 

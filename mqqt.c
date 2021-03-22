@@ -53,7 +53,7 @@ uint16_t getConnectPacket(uint8_t* tcpData, uint8_t protocolLevel, uint8_t conne
 
     uint32_t remlen;
     uint8_t fieldCount = 1;
-    remlen = getRemLength((3 + sizeof(connectHeader) + clientIDLength), &fieldCount);
+    remlen = getRemLength((2 + sizeof(connectHeader) + clientIDLength), &fieldCount);
 
     mqtt->remLength[0] = 0;
     mqtt->remLength[1] = 0;
@@ -83,10 +83,92 @@ uint16_t getConnectPacket(uint8_t* tcpData, uint8_t protocolLevel, uint8_t conne
     getutf8Encoding(connectData, clientID, clientIDLength);
 
     uint16_t payloadLength = sizeof(mqttPack) + sizeof(connectHeader) + sizeof(connectData);
-
-
     return payloadLength;
 }
 
+uint16_t getPublishPacket(uint8_t* tcpData, char* topic_name, char* data)
+{
+    mqttPack* mqtt = (mqttPack*) tcpData;
+
+    uint32_t remlen;
+    uint8_t fieldCount = 1;
+
+    uint16_t topic_length = strlen(topic_name);
+    remlen = getRemLength((sizeof(topic_length) + topic_length + strlen(data)), &fieldCount);
+
+    //initialize all indices to zero
+    mqtt->remLength[0] = 0;
+    mqtt->remLength[1] = 0;
+    mqtt->remLength[2] = 0;
+    mqtt->remLength[3] = 0;
+
+    uint8_t i;
+    for(i = 0; i<fieldCount; i++)
+    {
+        mqtt->remLength[i] = remlen & 0xFF;
+        remlen = remlen >> (8*i);
+    }
+
+
+    uint8_t* publish = mqtt->remLength + fieldCount;
+
+    getutf8Encoding(publish, topic_name, topic_length);
+
+    publish += 2 + topic_length;
+
+
+
+    uint16_t sizeofPayload = strlen(data);
+
+    for (i = 0; i<sizeofPayload; i++)
+    {
+        *(publish + i) = *(data + i);
+    }
+
+    //getutf8Encoding(publish, data, sizeofPayload);
+
+    uint16_t payloadLength = 1 + fieldCount + topic_length + sizeof(topic_length) + sizeofPayload;
+    return payloadLength;
+}
+
+
+uint16_t getSubscribePacket(uint8_t* tcpData, uint16_t packetId, char* topic_name)
+{
+    mqttPack* mqtt = (mqttPack*) tcpData;
+
+    uint32_t remlen;
+    uint8_t fieldCount = 1;
+
+    uint16_t topic_length = strlen(topic_name);
+    remlen = getRemLength(sizeof(packetId) + sizeof(topic_length) + topic_length + 1, &fieldCount);
+
+    //initialize all indices to zero
+    mqtt->remLength[0] = 0;
+    mqtt->remLength[1] = 0;
+    mqtt->remLength[2] = 0;
+    mqtt->remLength[3] = 0;
+
+    uint8_t i;
+    for(i = 0; i<fieldCount; i++)
+    {
+        mqtt->remLength[i] = remlen & 0xFF;
+        remlen = remlen >> (8*i);
+    }
+
+    uint8_t* subscribe = mqtt->remLength + fieldCount;
+
+    *subscribe = htons(packetId);
+    subscribe += 2;
+
+    getutf8Encoding(subscribe, topic_name, topic_length);
+    subscribe += topic_length + 2;
+
+    *subscribe = 0; //default QoS we are using = 0
+
+    //getutf8Encoding(publish, data, sizeofPayload);
+
+    uint16_t payloadLength = 2 + fieldCount + topic_length + sizeof(topic_length) + sizeof(packetId) ;  //2 -> 1 for the mqtt fixed header, 1 for the size of QoS field at the end
+    return payloadLength;
+}
 
 
