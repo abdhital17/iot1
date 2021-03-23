@@ -54,6 +54,17 @@ typedef struct _connackHeader
     uint8_t returnCode;
 }connackHeader;
 
+typedef struct _subAckHeader
+{
+    uint16_t id;
+    uint8_t return_code;
+}subAckHeader;
+
+typedef struct _unSubAckHeader
+{
+    uint16_t id;
+}unSubAckHeader;
+
 void getutf8Encoding(char* outputStr, char* inputStr, uint16_t strlen);
 void getMQTTPacket(uint8_t* tcpData, uint8_t type, uint8_t flags);
 uint16_t getConnectPacket(uint8_t* tcpData, uint8_t protocolLevel, uint8_t connectFlags, uint16_t keepalive, char* clientID, uint16_t clientIDLength);
@@ -62,6 +73,8 @@ uint16_t getSubscribePacket(uint8_t* tcpData, uint16_t packetId, char* topic_nam
 uint16_t getDisconnectPacket(uint8_t* tcpData);
 bool isMQTTconnack(uint8_t* tcpData);
 uint32_t getRemLength(uint32_t input, uint8_t* fieldCount);
+uint16_t printPublishedPacket(uint8_t* tcpData);
+uint16_t getRemainingLength(uint8_t* remLenField);
 
 
 #endif

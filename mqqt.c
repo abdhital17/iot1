@@ -197,4 +197,67 @@ uint16_t getSubscribePacket(uint8_t* tcpData, uint16_t packetId, char* topic_nam
 
 }
 
+uint16_t getRemainingLengthFromPublish(uint8_t remLenField[])
+{
+    uint32_t multiplier = 1;
+    uint16_t value = 0;
+    uint8_t encodedByte;
+    uint8_t i = 0;
+    do
+    {
+        encodedByte = remLenField[i];
+        value += (encodedByte & 127) * multiplier;
+        multiplier *= 128;
+        if (multiplier > 128 * 128 * 128)
+        {
+            putsUart0("Remaining Length field Malformed...\n\r");
+            return 0;
+        }
+        i++;
+    }while((encodedByte & 128)!=0);
+    return value;
+}
+
+uint16_t printPublishedPacket(uint8_t* tcpData)
+{
+    mqttPack* mqtt = (mqttPack*) tcpData;
+    uint16_t remlen = getRemainingLengthFromPublish(mqtt->remLength);
+    uint8_t fieldCount = 1;
+
+    uint8_t* point = mqtt->remLength + fieldCount;
+
+    uint16_t topicSize = *point;
+    topicSize += *(point+1);
+//    topicSize = ntohs(topicSize);
+
+    uint8_t i;
+    point += 2;
+    putsUart0(".............Receiving MQTT subscription packets..............\n\r");
+    putsUart0("Topic Name: ");
+    for(i = 0; i < topicSize; i++)
+    {
+        putcUart0(*point);
+        point++;
+    }
+    putsUart0("\n\r\n");
+
+    uint16_t dataSize = *point;
+    dataSize += *(point+1);
+    point += 2;
+    putsUart0("Data: ");
+    for(i = 0; i<dataSize; i++)
+    {
+        putcUart0(*point);
+        point++;
+    }
+
+    putsUart0("\n\r\n");
+    return remlen;
+
+//    char text[50];
+//    sprintf(text, "Remaining Length: %d\n\r", remlen);
+//    putsUart0(text);
+}
+
+
 
