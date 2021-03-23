@@ -73,15 +73,15 @@
 
 
 //Packet Types MQTT
-#define CONNECT 1
-#define CONNACK 2
-#define PUBLISH 3
-#define PUBACK  4
-#define SUBSCRIBE 8
-#define SUBACK    9
+#define CONNECT      1
+#define CONNACK      2
+#define PUBLISH      3
+#define PUBACK       4
+#define SUBSCRIBE    8
+#define SUBACK       9
 #define UNSUBSCRIBE 10
 #define UNSUBACK    11
-#define DISCONNECT 14
+#define DISCONNECT  14
 
 
 uint32_t sNum = 0;
@@ -547,13 +547,13 @@ int main(void)
 
 
                             //after receiving connack
-                            etherSendTCP(ether, &soc, 0x10, aNum, sNum, 0);    //flag = 0x10 for ACK
-                            getMQTTPacket(tcp->data, PUBLISH, 2);
-                            tcpPayloadSize = getPublishPacket(tcp->data, "test_name", "1234abcd6789");
-                            etherSendTCP((uint8_t*)ether, &soc, 0x18, aNum, sNum, tcpPayloadSize);
+                            etherSendTCP((uint8_t*)ether, &soc, 0x10, aNum, sNum, 0);    //flag = 0x10 for ACK
+//                            getMQTTPacket(tcp->data, PUBLISH, 0);
+//                            tcpPayloadSize = getPublishPacket(tcp->data, "test", "1234abcd6789");
+//                            etherSendTCP((uint8_t*)ether, &soc, 0x18, aNum, sNum, tcpPayloadSize);
 
 
-                            getMQTTPacket(tcp->data, SUBSCRIBE, 0);
+                            getMQTTPacket(tcp->data, SUBSCRIBE, 2);
                             tcpPayloadSize = getSubscribePacket(tcp->data, 456, "topicName");
 
 

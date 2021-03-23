@@ -9,18 +9,18 @@
 
 
 
-//MQTT Control Header Flags
-//Packet Types MQTT
-#define CONNECT 1
-#define CONNACK 2
-#define PUBLISH 3
-#define PUBACK  4
-#define SUBSCRIBE 8
-#define SUBACK    9
-#define UNSUBSCRIBE 10
-#define UNSUBACK    11
-#define DISCONNECT 14
-
+////MQTT Control Header Flags
+////Packet Types MQTT
+//#define CONNECT 1
+//#define CONNACK 2
+//#define PUBLISH 3
+//#define PUBACK  4
+//#define SUBSCRIBE 8
+//#define SUBACK    9
+//#define UNSUBSCRIBE 10
+//#define UNSUBACK    11
+//#define DISCONNECT 14
+//
 
 //MQTT Packet
 //-> Control Header (1 Byte)
