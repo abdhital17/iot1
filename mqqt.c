@@ -46,6 +46,15 @@ void getMQTTPacket(uint8_t* tcpData, uint8_t type, uint8_t flags)
     mqtt->controlHeader = (type << 4) + flags;
 }
 
+uint16_t getDisconnectPacket(uint8_t* tcpData)
+{
+    mqttPack* mqtt = (mqttPack*) tcpData;
+
+    mqtt->remLength[0] = 0;
+
+    return 2;   //size of disconnect packet is always = 2, which includes the controlHeader and the remaining length field (1 byte) which contains value 0x00.
+}
+
 
 uint16_t getConnectPacket(uint8_t* tcpData, uint8_t protocolLevel, uint8_t connectFlags, uint16_t keepalive, char* clientID, uint16_t clientIDLength)
 {
@@ -135,7 +144,7 @@ uint16_t getPublishPacket(uint8_t* tcpData, char* topic_name, char* data)
 }
 
 
-uint16_t getSubscribePacket(uint8_t* tcpData, uint16_t packetId, char* topic_name)
+uint16_t getSubscribePacket(uint8_t* tcpData, uint16_t packetId, char* topic_name)          //coded this routine such that it handles both the subscribe and unsubscribe packets.
 {
     mqttPack* mqtt = (mqttPack*) tcpData;
 
@@ -144,6 +153,10 @@ uint16_t getSubscribePacket(uint8_t* tcpData, uint16_t packetId, char* topic_nam
 
     uint16_t topic_length = strlen(topic_name);
     remlen = getRemLength(sizeof(packetId) + sizeof(topic_length) + topic_length + 1, &fieldCount);
+
+    if (((mqtt->controlHeader >> 4) & 0xF) == 0xA)      //if unsubscribe packet;
+        remlen--;
+
 
     //initialize all indices to zero
     mqtt->remLength[0] = 0;
@@ -168,12 +181,20 @@ uint16_t getSubscribePacket(uint8_t* tcpData, uint16_t packetId, char* topic_nam
     getutf8Encoding(subscribe, topic_name, topic_length);
     subscribe += topic_length + 2;
 
-    *subscribe = 0; //default QoS we are using = 0
+
+    if (((mqtt->controlHeader >> 4) & 0xF) == 0xA)      //if unsubscribe packet;
+    {
+
+        uint16_t payloadLength = 1 + fieldCount + topic_length + sizeof(topic_length) + sizeof(packetId) ;  //1-> for the mqtt fixed header -> controlHeader field
+        return payloadLength;
+    }
+        *subscribe = 0; //default QoS we are using = 0
 
    // getutf8Encoding(publish, data, sizeofPayload);
 
     uint16_t payloadLength = 2 + fieldCount + topic_length + sizeof(topic_length) + sizeof(packetId) ;  //2 -> 1 for the mqtt fixed header, 1 for the size of QoS field at the end
     return payloadLength;
+
 }
 
 

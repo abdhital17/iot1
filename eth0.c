@@ -760,6 +760,7 @@ void etherSendTCP(uint8_t *packet, socket *S, uint16_t flags, uint32_t ackNum, u
         //MSS Value = 1460 for 1460bytes of max. TCP payload, 1460 = 0x05B4
         *(tcp->data + 2) = 0x05;
         *(tcp->data + 3) = 0xB4;
+
          tcpHeaderLength = ipHeaderLength - (ip->revSize & 0xF)*4;
     }
     //tcpHeaderLength = (tcpHeaderLength / 4) << 12;
@@ -786,9 +787,9 @@ void etherSendTCP(uint8_t *packet, socket *S, uint16_t flags, uint32_t ackNum, u
 
     etherSumWords(p, sizeof(pseudo), &sum);
 
-if(flags & 0x2)
+if(flags & 0x2)     //if SYN Flag is being sent, add the fields in TCP header including the options field
     etherSumWords(tcp, tcpHeaderLength, &sum);
-else
+else            //if not, only sum the tcp header (without the options field) & the payload
     etherSumWords(tcp, tcpHeaderLength + payloadSize, &sum);
 
     //etherSumWords(tcp->data, 0 , &sum);

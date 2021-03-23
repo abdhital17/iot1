@@ -553,9 +553,17 @@ int main(void)
 //                            etherSendTCP((uint8_t*)ether, &soc, 0x18, aNum, sNum, tcpPayloadSize);
 
 
-                            getMQTTPacket(tcp->data, SUBSCRIBE, 2);
+                            getMQTTPacket(tcp->data, UNSUBSCRIBE, 2);
                             tcpPayloadSize = getSubscribePacket(tcp->data, 456, "topicName");
+                            etherSendTCP((uint8_t*)ether, &soc, 0x18, aNum, sNum, tcpPayloadSize);
 
+
+                            aNum += 4;
+                            sNum += tcpPayloadSize;
+
+                            etherSendTCP((uint8_t*)ether, &soc, 0x10, aNum, sNum, 0);    //flag = 0x10 for ACK
+                            getMQTTPacket(tcp->data, DISCONNECT, 0);
+                            tcpPayloadSize = getDisconnectPacket(tcp->data);
 
                             etherSendTCP((uint8_t*)ether, &soc, 0x18, aNum, sNum, tcpPayloadSize);
                         }

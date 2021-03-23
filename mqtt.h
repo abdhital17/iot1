@@ -59,6 +59,7 @@ void getMQTTPacket(uint8_t* tcpData, uint8_t type, uint8_t flags);
 uint16_t getConnectPacket(uint8_t* tcpData, uint8_t protocolLevel, uint8_t connectFlags, uint16_t keepalive, char* clientID, uint16_t clientIDLength);
 uint16_t getPublishPacket(uint8_t* tcpData, char* topic_name, char* data);
 uint16_t getSubscribePacket(uint8_t* tcpData, uint16_t packetId, char* topic_name);
+uint16_t getDisconnectPacket(uint8_t* tcpData);
 bool isMQTTconnack(uint8_t* tcpData);
 uint32_t getRemLength(uint32_t input, uint8_t* fieldCount);
 
