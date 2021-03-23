@@ -1,3 +1,10 @@
+//IoT MQTT Broker Project
+//Internet of Things Project 1
+
+//Abhishek Dhital
+//ID: 1001548204
+
+
 // Ethernet Example
 // Jason Losh
 
@@ -64,6 +71,7 @@
 #include "eth0.h"
 #include "tm4c123gh6pm.h"
 #include "mqtt.h"
+#include "eeprom.h"
 
 // Pins
 #define RED_LED PORTF,1
@@ -73,20 +81,54 @@
 
 
 //Packet Types MQTT
-#define CONNECT      1
-#define CONNACK      2
-#define PUBLISH      3
-#define PUBACK       4
-#define SUBSCRIBE    8
-#define SUBACK       9
-#define UNSUBSCRIBE 10
-#define UNSUBACK    11
-#define DISCONNECT  14
+//passed in as an argument to the getMQTTPacket function
+#define CONNECT         1
+#define CONNACK         2
+#define PUBLISH         3
+#define PUBACK          4
+#define SUBSCRIBE       8
+#define SUBACK          9
+#define UNSUBSCRIBE     10
+#define UNSUBACK        11
+#define DISCONNECT      14
 
 
-uint32_t sNum = 0;
-uint32_t aNum = 0;
-bool check = false;
+uint32_t sNum = 0;                  //global variable for sequence Number
+uint32_t aNum = 0;                  //global variable for acknowledgement Number
+
+//TCP State definitions
+#define CLOSED          0
+#define ARP_REQ         1
+#define ARP_RES         2
+#define SYN_SEND        3
+#define WAIT_SYN_ACK    4
+#define SEND_ACK        5
+#define SEND_FIN1       6
+#define SEND_FIN2       7
+#define TIME_WAIT       8
+
+
+//MQTT State definitions
+#define STATE_CONNECT       9
+#define STATE_CONNACK       10
+#define STATE_SUB           11
+#define STATE_SUBACK        12
+#define STATE_PUBLISH       13
+#define STATE_UNSUB         14
+#define STATE_UNSUBACK      15
+#define STATE_DISCONNECT    16
+#define IDLE                17
+
+uint16_t FSM_State    = IDLE;           //this variable is used to keep track of the current TCP FSM state and the MQTT connection state
+bool EstablishedState = false;          //True when the TCP connection is established with the MQTT broker
+
+
+#define PI                  23          //Packet Id for Subscribe and Unsubscribe commands
+
+//EEPROM location where our data is stored for the MQTT broker IP and our own IP.
+#define MQTTADDRESS     0x1
+#define IPADDRESS       0x2
+
 //-----------------------------------------------------------------------------
 // Subroutines                
 //-----------------------------------------------------------------------------
@@ -165,6 +207,47 @@ void displayConnectionInfo()
 }
 
 
+
+void displayStatus(uint8_t mqtt[])
+{
+    uint8_t ip[4];
+
+    etherGetIpAddress(ip);
+    putsUart0("IP: ");
+    uint8_t i;
+    char str[15];
+    for (i = 0; i < 4; i++)
+    {
+        sprintf(str, "%u", ip[i]);
+        putsUart0(str);
+        if (i < 4-1)
+            putcUart0('.');
+    }
+
+    putsUart0("\n\rMQTT: ");
+    for (i = 0; i < 4; i++)
+    {
+        sprintf(str, "%u", mqtt[i]);
+        putsUart0(str);
+        if (i < 4-1)
+            putcUart0('.');
+    }
+
+    putsUart0("\n\r");
+
+
+}
+//function that sets the bit in the NVIC APINT register so that the chip can reboot when the reboot command  is entered by the user
+void reboot()
+{
+    putsUart0("Rebooting......\n\r");
+    waitMicrosecond(100000);
+    NVIC_APINT_R = 0x05FA0004;
+}
+
+
+
+
 //*************************Shell interface functions*************************************************
 #define MAX_CHARS 80
 #define MAX_FIELDS 5
@@ -240,7 +323,7 @@ void parseFields(USER_DATA* d)
                 d->fieldPosition[d->fieldCount]=i;
                 d->fieldCount+=1;
             }
-        else if(!((temp>=97 && temp<=122) || (temp>=65&&temp<=90)) && !(temp>=48 && temp<=57) )
+        else if(!((temp>=97 && temp<=122) || (temp>=65&&temp<=90)) && !(temp>=48 && temp<=57))
            {
              prev=0;
              d->buffer[i]='\0';
@@ -337,10 +420,13 @@ int main(void)
     uint8_t* udpData;
     uint8_t buffer[MAX_PACKET_SIZE];
     etherHeader *data = (etherHeader*) buffer;
+    ipHeader *ip = (ipHeader*)data->data;
+    tcpHeader *tcp = (tcpHeader*)ip->data;
+
 
     // Init controller
     initHw();
-
+    initEeprom();
     // Setup UART0
     initUart0();
     setUart0BaudRate(115200, 40e6);
@@ -354,7 +440,7 @@ int main(void)
     etherSetIpGatewayAddress(192, 168, 1, 1);
     etherInit(ETHER_UNICAST | ETHER_BROADCAST | ETHER_HALFDUPLEX);
     waitMicrosecond(100000);
-    displayConnectionInfo();
+    //displayConnectionInfo();
 
     // Flash LED
     setPinValue(GREEN_LED, 1);
@@ -362,9 +448,36 @@ int main(void)
     setPinValue(GREEN_LED, 0);
     waitMicrosecond(100000);
 
-
     uint8_t mqtt_ip[4];
     uint8_t mqtt_addr[6];
+
+    socket soc;         //socket variable that will be used to pass to the sendTCP function
+    soc.destPort   = 1883;
+    soc.sourcePort = 12343;
+    uint16_t tcpPayloadSize = 0;
+
+
+    //Read EEPROM to get the MQTT broker IP and IP for the client device
+    if(readEeprom(MQTTADDRESS) == 0xFFFFFFFF)
+        putsUart0("MQTT Broker IP not set. It needs to be set to establish a connection.\n\r");
+    else
+    {
+        uint32_t temp = readEeprom(MQTTADDRESS);
+        mqtt_ip[3] = temp & 0xFF;
+        mqtt_ip[2] = (temp >> 8) & 0xFF;
+        mqtt_ip[1] = (temp >> 16) & 0xFF;
+        mqtt_ip[0] = (temp >> 24) & 0xFF;
+    }
+
+    if(readEeprom(IPADDRESS) == 0xFFFFFFFF)
+        putsUart0("Client IP not set. It needs to be set to establish a connection.\r\n");
+    else
+    {
+        uint32_t temp = readEeprom(IPADDRESS);
+        etherSetIpAddress((temp >> 24) & 0xFF, (temp >> 16) & 0xFF, (temp >> 8) & 0xFF, temp & 0xFF);
+    }
+
+
     // Main Loop
     // RTOS and interrupts would greatly improve this code,
     // but the goal here is simplicity
@@ -381,23 +494,156 @@ int main(void)
 
             bool valid=false;
 
-            if(isCommand(&d,"connect",4))
+            if(isCommand(&d, "reboot", 0))
+                reboot();
+
+            else if(isCommand(&d, "setMQTT", 4) && d.fieldCount == 5)
+                {
+                    uint32_t mqttIp = (getFieldInteger(&d, 1) << 24) + (getFieldInteger(&d, 2) << 16) + (getFieldInteger(&d, 3) << 8) + getFieldInteger(&d, 4);
+                    writeEeprom(MQTTADDRESS, mqttIp);
+                    putsUart0("MQTT address updated in EEPROM.\n\r");
+
+                    valid = true;
+                }
+
+           else if(isCommand(&d, "setIP", 4) && d.fieldCount == 5)
+                {
+                    uint32_t temp = (getFieldInteger(&d, 1) << 24) + (getFieldInteger(&d, 2) << 16) + (getFieldInteger(&d, 3) << 8) + getFieldInteger(&d, 4);
+                    writeEeprom(IPADDRESS, temp);
+                    putsUart0("Ip address updated in the EEPROM\n\r");
+                    valid = true;
+                }
+
+
+
+            else if(isCommand(&d, "status", 0))
             {
-             mqtt_ip[0] = getFieldInteger(&d, 1);
-             mqtt_ip[1] = getFieldInteger(&d, 2);
-             mqtt_ip[2] = getFieldInteger(&d, 3);
-             mqtt_ip[3] = getFieldInteger(&d, 4);
+                displayStatus(mqtt_ip);
+                valid = true;
+            }
 
-             putsUart0("Sending ARP Request to the MQTT Broker.\n\r");
-             etherSendArpRequest(data, mqtt_ip);
+            else if(isCommand(&d,"connect",0))
+            {
+                if(FSM_State == IDLE)
+                {
+                    FSM_State = ARP_REQ;
 
-             valid = true;
+                }
+
+                else
+                {
+                    putsUart0("Can't connect right now. Please try again\n\r");
+                }
+
+                valid = true;
+            }
+
+            else if(isCommand(&d, "disconnect", 0))
+            {
+                FSM_State = STATE_DISCONNECT;
+                valid = true;
+            }
+
+            else if(isCommand(&d, "publish", 2))
+            {
+                FSM_State = STATE_PUBLISH;
+            }
+
+            else if(isCommand(&d, "subscribe", 1))
+            {
+                FSM_State = STATE_SUB;
+            }
+
+            else if(isCommand(&d, "unsubscribe", 1))
+            {
+                FSM_State = STATE_UNSUB;
             }
 
             if(!valid)
                 putsUart0("invalid command\n\r");
+        }
+
+        if (FSM_State == ARP_REQ)
+        {
+            putsUart0("Sending ARP Request to the MQTT Broker.\n\r");
+            etherSendArpRequest(data, mqtt_ip);
+
+            FSM_State = ARP_RES;
+            continue;
+        }
+
+        else if (FSM_State == SYN_SEND)
+        {
+            etherGetMacAddress(soc.sourceHw);
+            etherGetIpAddress(soc.sourceIp);
+
+            uint8_t i = 0;
+            for (i = 0; i < 4; i++)
+                 soc.destIP[i] = mqtt_ip[i];
+
+            for (i = 0; i < 6; i++)
+                soc.destHw[i] = mqtt_addr[i];
+
+            etherSendTCP(data, &soc, 0x2, aNum, sNum, 4);           //size 4 for the options field attached at the end of TCP packet, for the first SYN message, to identify it as a MSS packet.
+            FSM_State = WAIT_SYN_ACK;
+            continue;
+        }
+
+        else if (FSM_State == SEND_ACK)
+        {
+            etherSendTCP((uint8_t*)data, &soc, 0x10, aNum, sNum, 0);
+            FSM_State = STATE_CONNECT;
+            EstablishedState = true;
+            setPinValue(BLUE_LED, EstablishedState);
+            continue;
+        }
+
+        else if (FSM_State == STATE_CONNECT)
+        {
+            getMQTTPacket(tcp->data, CONNECT, 0);
+            tcpPayloadSize = getConnectPacket(tcp->data, 0x04, 0, 100, "abhi", 4);          //flags = 0; keepAlive = 100
+            etherSendTCP((uint8_t*)data, &soc, 0x18, aNum, sNum, tcpPayloadSize);
+            FSM_State = STATE_CONNACK;
+            continue;
 
         }
+
+        else if (FSM_State == STATE_SUB)
+        {
+            getMQTTPacket(tcp->data, SUBSCRIBE, 2);
+            tcpPayloadSize = getSubscribePacket(tcp->data, PI, getFieldString(&d, 1));
+            etherSendTCP((uint8_t*)data, &soc, 0x18, aNum, sNum, tcpPayloadSize);
+            FSM_State = STATE_SUBACK;
+            continue;
+        }
+
+        else if (FSM_State == STATE_UNSUB)
+        {
+            getMQTTPacket(tcp->data, UNSUBSCRIBE, 2);
+            tcpPayloadSize = getSubscribePacket(tcp->data, PI, getFieldString(&d, 1));
+            etherSendTCP((uint8_t*)data, &soc, 0x18, aNum, sNum, tcpPayloadSize);
+            FSM_State = STATE_UNSUBACK;
+            continue;
+        }
+
+        else if (FSM_State == STATE_PUBLISH)
+        {
+            getMQTTPacket(tcp->data, PUBLISH, 0);       //only supports QoS = 0
+            tcpPayloadSize = getPublishPacket(tcp->data, getFieldString(&d, 1), getFieldString(&d, 2));
+            etherSendTCP((uint8_t*)data, &soc, 0x18, aNum, sNum, tcpPayloadSize);
+            FSM_State = IDLE;
+            sNum += tcpPayloadSize;
+            continue;
+        }
+
+        else if (FSM_State == STATE_DISCONNECT)
+        {
+            aNum = 0;           //clear the ack number and sequence number fields so that they can be used again to restart connection when required.
+            sNum = 0;
+            FSM_State = IDLE;
+            continue;
+        }
+
 
         // Packet processing
         if (etherIsDataAvailable())
@@ -411,60 +657,38 @@ int main(void)
 
             // Get packet
             etherGetPacket(data, MAX_PACKET_SIZE);
-
-            // Handle ARP request
-            if (etherIsArpRequest(data))
-            {
-                etherSendArpResponse(data);
-            }
+//
+//            // Handle ARP request
+//            if (etherIsArpRequest(data))
+//            {
+//                etherSendArpResponse(data);
+//            }
 
             //Handle ARP response
-            if (etherIsArpResponse(data))
+            if (FSM_State == ARP_RES && etherIsArpResponse(data))
             {
                 putsUart0("getting ARP response\n\r");
                 //mqtt_addr
 
                 arpPacket *arp = (arpPacket*)data->data;
-
-                mqtt_addr[0] = arp->sourceAddress[0];
-                mqtt_addr[1] = arp->sourceAddress[1];
-                mqtt_addr[2] = arp->sourceAddress[2];
-                mqtt_addr[3] = arp->sourceAddress[3];
-                mqtt_addr[4] = arp->sourceAddress[4];
-                mqtt_addr[5] = arp->sourceAddress[5];
+                uint8_t i = 0;
+                for(i = 0; i<6; i++)
+                {
+                    mqtt_addr[i] = arp->sourceAddress[i];
+                }
 
                 char text[50];
                 sprintf(text, "mqtt address: %02x : %02x : %02x : %02x : %02x : %02x\n\r", mqtt_addr[0],mqtt_addr[1],mqtt_addr[2],mqtt_addr[3],mqtt_addr[4],mqtt_addr[5]);
                 putsUart0(text);
+                FSM_State = SYN_SEND;
+                continue;
+            }
 
-                socket soc;
-                uint8_t packet[MAX_PACKET_SIZE];
-
-                uint8_t macAddr[6];
-                etherGetMacAddress(macAddr);
-                uint8_t ipAddr[4];
-                etherGetIpAddress(ipAddr);
-
-                uint8_t i = 0;
-                for (i = 0; i < 6; i++)
-                {
-                    soc.sourceHw[i] = macAddr[i] ;
-                    soc.destHw[i] = mqtt_addr[i];
-                }
-
-
-                for (i = 0; i < 4; i++)
-                {
-                    soc.sourceIp[i] = ipAddr[i];
-                    soc.destIP[i] = mqtt_ip[i];
-                }
-
-                soc.destPort = 1883;
-                soc.sourcePort = 12343;
-
-                check = false;
-                etherSendTCP(packet, &soc, 0x2, aNum, sNum, 4);    //flag = 2 for SYN
-
+            else if (FSM_State == ARP_RES && !etherIsArpResponse(data))
+            {
+                putsUart0("Couldn't get an ARP response from the MQTT broker.\n\r");
+                FSM_State = ARP_REQ;
+                continue;
             }
 
             // Handle IP datagram
@@ -478,107 +702,159 @@ int main(void)
                       etherSendPingResponse(data);
                     }
 
-                    // Process UDP datagram
-                    if (etherIsUdp(data))
-                    {
-                        udpData = etherGetUdpData(data);
-                        if (strcmp((char*)udpData, "on") == 0)
-                            setPinValue(GREEN_LED, 1);
-                        if (strcmp((char*)udpData, "off") == 0)
-                            setPinValue(GREEN_LED, 0);
-                        etherSendUdpResponse(data, (uint8_t*)"Received", 9);
-                    }
+//                    // Process UDP datagram
+//                    if (etherIsUdp(data))
+//                    {
+//                        udpData = etherGetUdpData(data);
+//                        if (strcmp((char*)udpData, "on") == 0)
+//                            setPinValue(GREEN_LED, 1);
+//                        if (strcmp((char*)udpData, "off") == 0)
+//                            setPinValue(GREEN_LED, 0);
+//                        etherSendUdpResponse(data, (uint8_t*)"Received", 9);
+//                    }
 
                     //process TCP datagram
                     if(etherIsTcpResponse(data))
                     {
 
-                         etherHeader* ether = data;
-                        ipHeader *ip = (ipHeader*)ether->data;
-                        uint8_t ipHeaderLength = (ip->revSize & 0xF) * 4;
-                        tcpHeader *tcp = (tcpHeader*)((uint8_t*)ip + ipHeaderLength);
-                        uint8_t flag = (ntohs(tcp->offsetFields) & 0xFF);
-
-                        sNum += 1;
-                        aNum = ntohl(tcp->sequenceNumber) + 1;
-                        uint8_t packet[MAX_PACKET_SIZE];
-
-                        char text[50];
-                        sprintf(text, "flag: 0x%x \n\r", flag);
-                        putsUart0(text);
-
-                        socket soc;
-                        uint8_t macAddr[6];
-                        etherGetMacAddress(macAddr);
-                        uint8_t ipAddr[4];
-                        etherGetIpAddress(ipAddr);
-
-                        uint8_t i = 0;
-                        for (i = 0; i < 6; i++)
+                        if (FSM_State == WAIT_SYN_ACK)
                         {
-                            soc.sourceHw[i] = macAddr[i] ;
-                            soc.destHw[i] = mqtt_addr[i];
+                            //if received synack
+                            if (ntohs(tcp->offsetFields) & 0x012)
+                            {
+                                aNum = ntohl(tcp->sequenceNumber) + 1;
+                                sNum += 1;
+                                etherSendTCP((uint8_t*)data, &soc, 0x18, aNum, sNum, 0); //send ACK
+                                FSM_State = SEND_ACK;
+                            }
+
+                            else
+                            {
+                                putsUart0("Error in receiving the SYN ACK.\n\r");
+                            }
+                            continue;
                         }
 
-
-                        for (i = 0; i < 4; i++)
+                        else if (FSM_State == STATE_CONNACK)
                         {
-                            soc.sourceIp[i] = ipAddr[i];
-                            soc.destIP[i] = mqtt_ip[i];
+                            mqttPack* mqtt = (mqttPack*)tcp->data;
+                            if (mqtt->controlHeader & 0x32)     //if it's a connack packet
+                            {
+                                connackHeader* connack = mqtt->remLength + 1;       //since it is a connack packet, we can assume that the remaining length field only occupies 1 byte.
+                                if (connack->returnCode == 0)
+                                {
+                                    FSM_State = IDLE;
+                                    aNum = getLength(data) + ntohl(tcp->sequenceNumber);
+                                    sNum += tcpPayloadSize;
+
+                                    etherSendTCP((uint8_t*)data, &soc, 0x10, aNum, sNum, 0);    //flag = 0x10 for ACK
+                                    putsUart0("Connected to the Broker!.\n\r");
+                                }
+
+                                else
+                                {
+                                    putsUart0("Connack Error. (Maybe not accepted).\n\r");
+                                }
+
+                            }
+
+                            else
+                                putsUart0("Didn't receive connack from the broker. Trying again.\n\r");
                         }
 
-                        soc.destPort = 1883;
-                        soc.sourcePort = 12343;
-
-//                        aNum = 1;
-
-                        if ((ntohs(tcp->offsetFields) & 0xFF) == 0x012)
-                        {
-
-                            //send ACK for [SYN,ACK]
-                            etherSendTCP(ether, &soc, 0x10, aNum, sNum, 0);    //flag = 0x10 for ACK
-
-                            //create and send a MQTT CONNECT packet
-                            getMQTTPacket(tcp->data, CONNECT, 0);
-                            uint16_t tcpPayloadSize = getConnectPacket(tcp->data, 0x04, 0, 100, "abhi", 4);
-                            etherSendTCP((uint8_t*)ether, &soc, (0x10) | 0x8, aNum, sNum, tcpPayloadSize);
-                            aNum += 4;
-                            sNum += tcpPayloadSize;
-
-
-                            //after receiving connack
-                            etherSendTCP((uint8_t*)ether, &soc, 0x10, aNum, sNum, 0);    //flag = 0x10 for ACK
-//                            getMQTTPacket(tcp->data, PUBLISH, 0);
-//                            tcpPayloadSize = getPublishPacket(tcp->data, "test", "1234abcd6789");
-//                            etherSendTCP((uint8_t*)ether, &soc, 0x18, aNum, sNum, tcpPayloadSize);
-
-
-                            getMQTTPacket(tcp->data, UNSUBSCRIBE, 2);
-                            tcpPayloadSize = getSubscribePacket(tcp->data, 456, "topicName");
-                            etherSendTCP((uint8_t*)ether, &soc, 0x18, aNum, sNum, tcpPayloadSize);
-
-
-                            aNum += 4;
-                            sNum += tcpPayloadSize;
-
-                            etherSendTCP((uint8_t*)ether, &soc, 0x10, aNum, sNum, 0);    //flag = 0x10 for ACK
-                            getMQTTPacket(tcp->data, DISCONNECT, 0);
-                            tcpPayloadSize = getDisconnectPacket(tcp->data);
-
-                            etherSendTCP((uint8_t*)ether, &soc, 0x18, aNum, sNum, tcpPayloadSize);
-                        }
-
-//                        else if (((ntohs(tcp->offsetFields) & 0xFF) == 0x011 || ntohs(tcp->offsetFields) & 0xFF == 0x014))
+//                        else if (FSM_STATE == STATE_SUBACK)
 //                        {
-//                            aNum = ntohl(tcp->sequenceNumber);
-//                            sNum = ntohl(tcp->acknowledgementNumber);
-//
-//                            putsUart0("Disconnecting.....\n\r");
-//                            etherSendTCP(ether, &soc, 0x10, aNum, sNum, 0);
+//                            if()
 //                        }
 
-//                        setPinValue(BLUE_LED, 1);
-                        //check = true;
+
+
+//                        etherHeader* ether = data;
+//                        ipHeader *ip = (ipHeader*)ether->data;
+//                        uint8_t ipHeaderLength = (ip->revSize & 0xF) * 4;
+//                        tcpHeader *tcp = (tcpHeader*)((uint8_t*)ip + ipHeaderLength);
+//                        uint8_t flag = (ntohs(tcp->offsetFields) & 0xFF);
+//
+//                        sNum += 1;
+//                        aNum = ntohl(tcp->sequenceNumber) + 1;
+//                        uint8_t packet[MAX_PACKET_SIZE];
+//
+//                        char text[50];
+//                        sprintf(text, "flag: 0x%x \n\r", flag);
+//                        putsUart0(text);
+//
+//                        socket soc;
+//                        uint8_t macAddr[6];
+//                        etherGetMacAddress(macAddr);
+//                        uint8_t ipAddr[4];
+//                        etherGetIpAddress(ipAddr);
+//
+//                        uint8_t i = 0;
+//                        for (i = 0; i < 6; i++)
+//                        {
+//                            soc.sourceHw[i] = macAddr[i] ;
+//                            soc.destHw[i] = mqtt_addr[i];
+//                        }
+//
+//
+//                        for (i = 0; i < 4; i++)
+//                        {
+//                            soc.sourceIp[i] = ipAddr[i];
+//                            soc.destIP[i] = mqtt_ip[i];
+//                        }
+//
+//                        soc.destPort = 1883;
+//                        soc.sourcePort = 12343;
+//
+////                        aNum = 1;
+//
+//                        if ((ntohs(tcp->offsetFields) & 0xFF) == 0x012)
+//                        {
+//
+//                            //send ACK for [SYN,ACK]
+//                            etherSendTCP(ether, &soc, 0x10, aNum, sNum, 0);    //flag = 0x10 for ACK
+//
+//                            //create and send a MQTT CONNECT packet
+//                            getMQTTPacket(tcp->data, CONNECT, 0);
+//                            uint16_t tcpPayloadSize = getConnectPacket(tcp->data, 0x04, 0, 100, "abhi", 4);
+//                            etherSendTCP((uint8_t*)ether, &soc, (0x10) | 0x8, aNum, sNum, tcpPayloadSize);
+//                            aNum += 4;
+//                            sNum += tcpPayloadSize;
+//
+//
+//                            //after receiving connack
+//                            etherSendTCP((uint8_t*)ether, &soc, 0x10, aNum, sNum, 0);    //flag = 0x10 for ACK
+////                            getMQTTPacket(tcp->data, PUBLISH, 0);
+////                            tcpPayloadSize = getPublishPacket(tcp->data, "test", "1234abcd6789");
+////                            etherSendTCP((uint8_t*)ether, &soc, 0x18, aNum, sNum, tcpPayloadSize);
+//
+//
+//                            getMQTTPacket(tcp->data, UNSUBSCRIBE, 2);
+//                            tcpPayloadSize = getSubscribePacket(tcp->data, 456, "topicName");
+//                            etherSendTCP((uint8_t*)ether, &soc, 0x18, aNum, sNum, tcpPayloadSize);
+//
+//
+//                            aNum += 4;
+//                            sNum += tcpPayloadSize;
+//
+//                            etherSendTCP((uint8_t*)ether, &soc, 0x10, aNum, sNum, 0);    //flag = 0x10 for ACK
+//                            getMQTTPacket(tcp->data, DISCONNECT, 0);
+//                            tcpPayloadSize = getDisconnectPacket(tcp->data);
+//
+//                            etherSendTCP((uint8_t*)ether, &soc, 0x18, aNum, sNum, tcpPayloadSize);
+//                        }
+//
+////                        else if (((ntohs(tcp->offsetFields) & 0xFF) == 0x011 || ntohs(tcp->offsetFields) & 0xFF == 0x014))
+////                        {
+////                            aNum = ntohl(tcp->sequenceNumber);
+////                            sNum = ntohl(tcp->acknowledgementNumber);
+////
+////                            putsUart0("Disconnecting.....\n\r");
+////                            etherSendTCP(ether, &soc, 0x10, aNum, sNum, 0);
+////                        }
+//
+////                        setPinValue(BLUE_LED, 1);
+//                        //check = true;
 
 
 

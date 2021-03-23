@@ -23,6 +23,7 @@ ethernet.obj: ../wait.h
 ethernet.obj: ../eth0.h
 ethernet.obj: ../tm4c123gh6pm.h
 ethernet.obj: ../mqtt.h
+ethernet.obj: ../eeprom.h
 
 ../ethernet.c: 
 C:/ti/ccs1011/ccs/tools/compiler/ti-cgt-arm_20.2.1.LTS/include/stdint.h: 
@@ -47,3 +48,4 @@ C:/ti/ccs1011/ccs/tools/compiler/ti-cgt-arm_20.2.1.LTS/include/string.h:
 ../eth0.h: 
 ../tm4c123gh6pm.h: 
 ../mqtt.h: 
+../eeprom.h: 

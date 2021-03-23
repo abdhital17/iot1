@@ -619,6 +619,15 @@ bool etherIsTcpResponse(etherHeader *ether)
     return ok;
 }
 
+uint16_t getLength(etherHeader* ether)
+{
+    ipHeader *ip = (ipHeader*)ether->data;
+    uint8_t ipHeaderLength = (ip->revSize & 0xF) * 4;
+    tcpHeader *tcp = (tcpHeader*)((uint8_t*)ip + ipHeaderLength);
+    uint16_t tcpHeaderLength = (htons(tcp->offsetFields) >> 12) * 4;
+    return (htons(ip->length) - ipHeaderLength - tcpHeaderLength);
+}
+
 // Determines whether packet is ping request
 // Must be an IP packet
 bool etherIsPingRequest(etherHeader *ether)

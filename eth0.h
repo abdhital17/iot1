@@ -190,6 +190,8 @@ void etherSendUdpResponse(etherHeader *ether, uint8_t* udpData, uint8_t udpSize)
 void etherSendTCP(uint8_t *packet, socket *S, uint16_t flags, uint32_t ackNum, uint32_t seqNum, uint16_t payloadSize);
 bool etherIsTcpResponse(etherHeader *ether);
 
+uint16_t getLength(etherHeader *ether);
+
 
 
 void etherEnableDhcpMode();
